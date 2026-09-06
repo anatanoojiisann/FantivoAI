@@ -63,8 +63,8 @@ npm run dev:admin
 需要 Node.js 22.12+、npm、Cloudflare 账户，以及通过 BotFather 创建的 Telegram Bot。
 
 ```bash
-git clone git@github.com:AuraxTeam/fantivo.git
-cd fantivo
+git clone git@github.com:anatanoojiisann/FantivoAI.git
+cd FantivoAI
 npm run setup
 cp .dev.vars.example .dev.vars
 npm test

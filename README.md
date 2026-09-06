@@ -1,4 +1,6 @@
-# Fantivo
+# Fantivo AI
+
+项目仓库：[anatanoojiisann/FantivoAI](https://github.com/anatanoojiisann/FantivoAI)。
 
 Fantivo AI 是一个通过 Telegram 创作 AI 视频的应用。本仓库包含 Telegram Bot、Mini App、运营后台前端及后台 Worker；使用 TypeScript、Vite、Cloudflare Workers、KV 和 D1。
 
@@ -25,11 +27,11 @@ Bot 和 Mini App 共用同一个 Open Platform Client 下的用户、余额与�
 
 ## 1. 安装与快速验证
 
-需要 **Node.js 22.12+**（推荐 Node 22 LTS，见 `.nvmrc`）、npm，以及私有仓库读取权限。
+需要 **Node.js 22.12+**（推荐 Node 22 LTS，见 `.nvmrc`）、npm，以及 Git。
 
 ```bash
-git clone https://github.com/AuraxTeam/fantivo.git
-cd fantivo
+git clone https://github.com/anatanoojiisann/FantivoAI.git
+cd FantivoAI
 npm run setup
 npm test
 npm run check:bundle

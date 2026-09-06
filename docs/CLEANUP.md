@@ -2,6 +2,8 @@
 
 整理日期：2026-09-06。
 
+交付仓库：[anatanoojiisann/FantivoAI](https://github.com/anatanoojiisann/FantivoAI)。
+
 ## 来源与范围
 
 新仓库取自本机 `TGBotFactory` 当时的完整工作文件，包含已暂存、未暂存及尚未被 Git 跟踪的业务实现；原目录、原远端与暂存状态保持不变。此次使用独立初始提交，旧提交历史保留在 `AuraxTeam/TGBotFactory`。
