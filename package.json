@@ -1,0 +1,43 @@
+{
+  "name": "fantivo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "setup": "npm ci && npm --prefix web ci && npm --prefix admin ci",
+    "dev": "wrangler dev",
+    "dev:web": "npm --prefix web run dev",
+    "dev:admin": "npm --prefix admin run dev",
+    "dev:admin:api": "npm --prefix admin-service run dev",
+    "migrate:admin:local": "npm --prefix admin-service run migrate:local",
+    "build:web": "npm --prefix web run build",
+    "build:admin": "npm --prefix admin run build",
+    "check:release": "node scripts/check-release.mjs",
+    "check:production": "node scripts/check-production.mjs",
+    "deploy": "npm test && npm run check:release && wrangler deploy && npm run check:production",
+    "deploy:legacy-redirect": "node --test test/legacy-redirect.test.mjs && wrangler deploy --config legacy-redirect/wrangler.jsonc",
+    "deploy:admin": "npm run build:admin && npm --prefix admin-service run deploy",
+    "setup:bot-brand": "node --env-file=.dev.vars scripts/setup-bot-brand.mjs",
+    "setup:webhook": "node --env-file=.dev.vars scripts/setup-webhook.mjs",
+    "typecheck": "tsc --noEmit && npm --prefix admin-service run typecheck",
+    "test": "npm run typecheck && npm run build:web && npm run build:admin && npm --prefix admin-service test && node --import tsx --test test/*.test.mjs test/*.test.ts",
+    "build": "npm run build:web && npm run build:admin",
+    "check:bundle": "wrangler deploy --dry-run --outdir dist/bot && wrangler deploy --config admin-service/wrangler.jsonc --dry-run --outdir dist/admin-service"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260801.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.118.0"
+  },
+  "overrides": {
+    "undici": "^7.29.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

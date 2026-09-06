@@ -1,0 +1,10 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "aurax-ai-bot",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-08-18",
+  "workers_dev": true,
+  "vars": {
+    "TARGET_ORIGIN": "https://fantivo-ai-bot.aurax-ai-telegram-bot.workers.dev"
+  }
+}

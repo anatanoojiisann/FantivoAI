@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AuraX Telegram Mini App component and interaction system, color-neutral edition." />
+    <title>AuraX Mini App · 组件与交互范式</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./system.css" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-home" viewBox="0 0 24 24"><path d="M3.5 10.8 12 3.9l8.5 6.9v9.1h-6v-5.6h-5v5.6h-6z" /></symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="icon-work" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2" /><path d="m9.5 9 6 3-6 3z" /></symbol>
+      <symbol id="icon-wallet" viewBox="0 0 24 24"><path d="M4 7.5h14.5A1.5 1.5 0 0 1 20 9v9H5.5A1.5 1.5 0 0 1 4 16.5z" /><path d="M4 8V6.5A1.5 1.5 0 0 1 5.5 5H17v2.5M15 12h5" /></symbol>
+      <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h14M14 7l5 5-5 5" /></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M19 8a8 8 0 1 0 1 7M19 4v4h-4" /></symbol>
+      <symbol id="icon-image" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="m5.5 17 4.3-4.2 3.1 2.7 2.4-2.2 3.2 3.7" /></symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24"><path d="m9 7 8 5-8 5z" /></symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24"><path d="m5 12.5 4.2 4.2L19 7" /></symbol>
+      <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></symbol>
+      <symbol id="icon-alert" viewBox="0 0 24 24"><path d="M12 4 21 20H3z" /><path d="M12 9v5M12 17.2v.1" /></symbol>
+      <symbol id="icon-chevron" viewBox="0 0 24 24"><path d="m7 9 5 5 5-5" /></symbol>
+      <symbol id="icon-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" /></symbol>
+      <symbol id="icon-back" viewBox="0 0 24 24"><path d="m10 5-7 7 7 7M3 12h18" /></symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="11" height="11" rx="2" /><path d="M16 8V5H5v11h3" /></symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 15v4h14v-4" /></symbol>
+      <symbol id="icon-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></symbol>
+    </svg>
+
+    <header class="site-header">
+      <a class="wordmark" href="#components-board" aria-label="AuraX 组件系统首页">
+        <span class="wordmark__mark">A</span>
+        <span>AuraX Interface System</span>
+      </a>
+      <nav aria-label="设计系统章节">
+        <a href="#components-board">组件体系</a>
+        <a href="#patterns-board">交互范式</a>
+        <a href="./README.md">实施方案</a>
+      </nav>
+      <span class="version">0.1 · COLOR NEUTRAL</span>
+    </header>
+
+    <main>
+      <section id="components-board" class="board components-board" aria-labelledby="components-title">
+        <header class="board-heading">
+          <div>
+            <h1 id="components-title">小程序组件体系</h1>
+            <p>以任务完成为核心，用层级、形状、密度和状态建立一致性；配色在后续阶段接入 Telegram 主题变量。</p>
+          </div>
+          <dl class="board-meta">
+            <div><dt>适用端</dt><dd>Telegram Mini App</dd></div>
+            <div><dt>视口</dt><dd>320–700 px</dd></div>
+            <div><dt>模式</dt><dd>Operate</dd></div>
+          </dl>
+        </header>
+
+        <div class="principle-strip" aria-label="设计原则">
+          <span><b>01</b>内容先于容器</span>
+          <span><b>02</b>状态不依赖颜色</span>
+          <span><b>03</b>主操作始终可预期</span>
+          <span><b>04</b>任务进度可恢复</span>
+        </div>
+
+        <div class="system-grid">
+          <aside class="foundation-rail" aria-label="基础规范">
+            <section>
+              <h2>排版层级</h2>
+              <div class="type-specimen">
+                <p class="type-display">32/36</p>
+                <p class="type-title">页面标题 24/28</p>
+                <p class="type-section">模块标题 18/24</p>
+                <p class="type-body">正文 14/20，用于解释任务与下一步。</p>
+                <p class="type-meta">辅助信息 11/16 · TABULAR 0123</p>
+              </div>
+            </section>
+
+            <section>
+              <h2>间距系统</h2>
+              <div class="spacing-scale" aria-label="4 到 48 像素间距比例">
+                <span style="--size: 4px"><i></i><b>4</b></span>
+                <span style="--size: 8px"><i></i><b>8</b></span>
+                <span style="--size: 12px"><i></i><b>12</b></span>
+                <span style="--size: 16px"><i></i><b>16</b></span>
+                <span style="--size: 24px"><i></i><b>24</b></span>
+                <span style="--size: 32px"><i></i><b>32</b></span>
+                <span style="--size: 48px"><i></i><b>48</b></span>
+              </div>
+              <p class="rail-note">页面边距 18；组件内距 12/16；模块间距 24/32；触控目标不小于 44×44。</p>
+            </section>
+
+            <section>
+              <h2>形状与深度</h2>
+              <dl class="token-list">
+                <div><dt>Control</dt><dd>10 px</dd></div>
+                <div><dt>Field</dt><dd>12 px</dd></div>
+                <div><dt>Card</dt><dd>14 px</dd></div>
+                <div><dt>Overlay</dt><dd>16 px</dd></div>
+                <div><dt>Hairline</dt><dd>1 px</dd></div>
+              </dl>
+              <p class="rail-note">平面内容优先用分隔线；只有浮层与底部导航使用阴影，避免“卡片套卡片”。</p>
+            </section>
+
+            <section>
+              <h2>动效节奏</h2>
+              <dl class="token-list">
+                <div><dt>Press</dt><dd>120 ms</dd></div>
+                <div><dt>State</dt><dd>180 ms</dd></div>
+                <div><dt>Overlay</dt><dd>240 ms</dd></div>
+                <div><dt>Easing</dt><dd>out-expo</dd></div>
+              </dl>
+              <p class="rail-note">页面切换只做 8px 位移与淡入；任务进度使用持续运动；减少动态时取消位移。</p>
+            </section>
+          </aside>
+
+          <div class="component-canvas">
+            <section class="component-section" aria-labelledby="navigation-title">
+              <header class="section-heading">
+                <h2 id="navigation-title">导航与页面框架</h2>
+                <p>四个一级任务保持固定位置；详情作为覆盖层，不挤压根导航。</p>
+              </header>
+              <div class="component-pair">
+                <div class="specimen specimen--wide">
+                  <div class="mini-topbar">
+                    <button class="brand-button" aria-label="返回首页"><span>A</span><b>AuraX</b></button>
+                    <div class="topbar-actions">
+                      <button class="icon-control" aria-label="切换语言"><svg><use href="#icon-more" /></svg></button>
+                      <button class="balance-control"><b>1,240</b><small>credits</small></button>
+                    </div>
+                  </div>
+                  <nav class="bottom-navigation" aria-label="示例底部导航">
+                    <button class="is-current"><svg><use href="#icon-home" /></svg><span>首页</span></button>
+                    <button><svg><use href="#icon-plus" /></svg><span>创作</span></button>
+                    <button><svg><use href="#icon-work" /></svg><span>作品</span></button>
+                    <button><svg><use href="#icon-wallet" /></svg><span>钱包</span></button>
+                  </nav>
+                </div>
+                <div class="annotation-list">
+                  <p><b>一级导航</b><span>切换保留各页状态；返回首页不重载 Feed。</span></p>
+                  <p><b>顶部动作</b><span>品牌回首页；余额直达钱包；语言属于全局设置。</span></p>
+                  <p><b>详情覆盖层</b><span>返回键关闭当前层；Esc 与浏览器返回行为一致。</span></p>
+                </div>
+              </div>
+            </section>
+
+            <section class="component-section" aria-labelledby="action-title">
+              <header class="section-heading">
+                <h2 id="action-title">动作与选择</h2>
+                <p>按钮只表达动作层级；标签和计数只在筛选场景使用药丸形态。</p>
+              </header>
+              <div class="control-matrix">
+                <div class="control-column">
+                  <button class="button button--primary"><span>生成视频<small>300 credits</small></span><svg><use href="#icon-arrow" /></svg></button>
+                  <button class="button button--secondary"><span>查看详情</span><svg><use href="#icon-arrow" /></svg></button>
+                  <button class="button button--quiet"><span>取消任务</span></button>
+                  <button class="button button--primary" disabled><span>信息未完成</span><svg><use href="#icon-arrow" /></svg></button>
+                </div>
+                <div class="control-column">
+                  <div class="segmented-control" data-segmented>
+                    <button class="is-selected" data-mode="text">文本生成</button>
+                    <button data-mode="image">图片生成</button>
+                  </div>
+                  <div class="filter-row" aria-label="任务筛选示例">
+                    <button class="is-selected">全部 <small>12</small></button>
+                    <button>进行中 <small>2</small></button>
+                    <button>已完成 <small>9</small></button>
+                    <button>失败 <small>1</small></button>
+                  </div>
+                  <div class="action-row">
+                    <button class="icon-control" aria-label="刷新"><svg><use href="#icon-refresh" /></svg></button>
+                    <button class="icon-control" aria-label="复制"><svg><use href="#icon-copy" /></svg></button>
+                    <button class="icon-control" aria-label="更多"><svg><use href="#icon-more" /></svg></button>
+                    <span>图标按钮 44×44</span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="component-section" aria-labelledby="input-title">
+              <header class="section-heading">
+                <h2 id="input-title">创作输入</h2>
+                <p>输入、参数和成本组成单一任务单元；用户无需滚动即可判断能否提交。</p>
+              </header>
+              <div class="composer-specimen">
+                <div class="upload-field" data-upload-demo hidden>
+                  <svg><use href="#icon-upload" /></svg>
+                  <span><b>添加参考图片</b><small>JPG、PNG 或 WebP · 最大 10 MB</small></span>
+                </div>
+                <label class="prompt-control">
+                  <span>描述你希望生成的画面</span>
+                  <textarea data-prompt maxlength="1000" rows="3" placeholder="例如：雨后的未来城市，镜头缓慢向前……"></textarea>
+                  <small><output data-count>0</output> / 1000</small>
+                </label>
+                <div class="parameter-row">
+                  <button><svg><use href="#icon-image" /></svg><span>9:16 · 竖屏</span><svg><use href="#icon-chevron" /></svg></button>
+                  <span><svg><use href="#icon-clock" /></svg><b>5s</b> 时长</span>
+                  <span><b>Standard</b></span>
+                </div>
+                <button class="button button--primary" data-generate disabled><span>生成视频<small>300 credits</small></span><svg><use href="#icon-arrow" /></svg></button>
+                <p class="helper-copy">提交前显示确切成本。输入有效后才启用主操作，禁用原因紧邻按钮说明。</p>
+              </div>
+            </section>
+
+            <section class="component-section" aria-labelledby="content-title">
+              <header class="section-heading">
+                <h2 id="content-title">内容与任务对象</h2>
+                <p>卡片不是装饰容器：内容卡负责“发现”，任务卡负责“恢复与处理”。</p>
+              </header>
+              <div class="object-grid">
+                <article class="content-card">
+                  <div class="content-card__media"><svg><use href="#icon-play" /></svg></div>
+                  <div><h3>城市级入场效果</h3><p>模板 · 1 张参考图 · 5 秒</p></div>
+                  <button class="icon-control" aria-label="打开详情"><svg><use href="#icon-arrow" /></svg></button>
+                </article>
+                <article class="job-card-demo" data-job-card data-state="working">
+                  <div class="job-card-demo__thumb"><svg data-state-icon><use href="#icon-clock" /></svg></div>
+                  <div class="job-card-demo__body">
+                    <header><h3>job_ocean_4m8</h3><span data-state-label>生成中</span></header>
+                    <p>AuraX Max · 300 credits</p>
+                    <div class="linear-progress" data-progress><i></i></div>
+                    <small data-state-detail>68% · 正在创建帧</small>
+                    <div><button>查看详情</button><button>取消任务</button></div>
+                  </div>
+                </article>
+              </div>
+              <div class="state-switch" aria-label="任务卡状态预览">
+                <span>预览状态</span>
+                <button class="is-selected" data-job-state="working">进行中</button>
+                <button data-job-state="done">已完成</button>
+                <button data-job-state="error">失败</button>
+              </div>
+            </section>
+
+            <section class="component-section" aria-labelledby="feedback-title">
+              <header class="section-heading">
+                <h2 id="feedback-title">反馈、空态与门槛</h2>
+                <p>反馈回答三个问题：发生了什么、是否需要处理、下一步在哪里。</p>
+              </header>
+              <div class="feedback-grid">
+                <div class="status-banner"><svg><use href="#icon-check" /></svg><span><b>任务已提交</b><small>可在“作品”中查看生成进度。</small></span><button><svg><use href="#icon-close" /></svg></button></div>
+                <div class="status-banner status-banner--error"><svg><use href="#icon-alert" /></svg><span><b>图片无法上传</b><small>请选择 10 MB 以内的 JPG、PNG 或 WebP。</small></span><button>重试</button></div>
+                <div class="empty-state-demo"><svg><use href="#icon-work" /></svg><h3>还没有作品</h3><p>完成第一次创作后，任务与结果会出现在这里。</p><button class="button button--secondary">开始创作</button></div>
+                <div class="consent-demo">
+                  <label><input type="checkbox" data-consent /><span>我已阅读并同意服务条款与隐私政策</span></label>
+                  <button class="button button--primary" data-payment disabled><span>订阅 Pro</span><svg><use href="#icon-arrow" /></svg></button>
+                  <small>支付动作必须由明确同意解锁；状态变化不造成布局位移。</small>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section id="patterns-board" class="board patterns-board" aria-labelledby="patterns-title">
+        <header class="board-heading">
+          <div>
+            <h1 id="patterns-title">交互范式与状态流</h1>
+            <p>把现有功能收敛为四条可预测的用户路径；每条路径都允许中断、返回和恢复。</p>
+          </div>
+          <dl class="board-meta">
+            <div><dt>根页面</dt><dd>4</dd></div>
+            <div><dt>覆盖层</dt><dd>2 类</dd></div>
+            <div><dt>反馈级别</dt><dd>3</dd></div>
+          </dl>
+        </header>
+
+        <div class="flow-stack">
+          <article class="flow-lane">
+            <header><h2>创作：单屏完成，异步交付</h2><p>主操作只在必填项有效时启用；提交后立即进入可恢复的任务状态。</p></header>
+            <ol class="flow-steps">
+              <li><b>选择模式</b><span>文本 / 图片</span></li>
+              <li><b>完成输入</b><span>素材 + Prompt</span></li>
+              <li><b>确认参数</b><span>比例 · 时长 · 成本</span></li>
+              <li class="flow-steps__emphasis"><b>提交生成</b><span>幂等 requestId</span></li>
+              <li><b>进入作品</b><span>显示排队与进度</span></li>
+            </ol>
+            <div class="flow-rule"><svg><use href="#icon-check" /></svg><span><b>成功标准</b>用户在首屏内看见输入、参数、成本和主操作；失败任务说明退款或重试路径。</span></div>
+          </article>
+
+          <article class="flow-lane">
+            <header><h2>内容发现：先预览，再承诺</h2><p>内容卡只负责打开详情；是否可创作、需要几张图，在详情层明确判断。</p></header>
+            <ol class="flow-steps flow-steps--branch">
+              <li><b>浏览 Feed</b><span>横向内容轨道</span></li>
+              <li><b>打开详情</b><span>媒体 + Prompt + 参数</span></li>
+              <li class="decision"><b>当前可创作？</b><span>能力检查</span></li>
+              <li><b>是：带入创作</b><span>锁定所需模式</span></li>
+              <li><b>否：保留预览</b><span>禁用并解释原因</span></li>
+            </ol>
+            <div class="flow-rule"><svg><use href="#icon-check" /></svg><span><b>成功标准</b>禁用态必须有原因；从模板进入创作后保留来源、Prompt 与所需素材数量。</span></div>
+          </article>
+
+          <article class="flow-lane">
+            <header><h2>任务：状态先行，动作随状态出现</h2><p>卡片用于扫描；全屏详情承载播放器、发布、分享、再次创作与完整元数据。</p></header>
+            <ol class="flow-steps">
+              <li><b>筛选任务</b><span>全部 / 进行中 / 完成 / 失败</span></li>
+              <li><b>扫描状态</b><span>图标 + 文案 + 进度</span></li>
+              <li><b>打开详情</b><span>覆盖层保留列表位置</span></li>
+              <li class="flow-steps__emphasis"><b>执行后续动作</b><span>发布 / 分享 / 再创作</span></li>
+              <li><b>返回列表</b><span>筛选与滚动不丢失</span></li>
+            </ol>
+            <div class="flow-rule"><svg><use href="#icon-check" /></svg><span><b>成功标准</b>进行中才显示取消；完成后才显示输出动作；失败显示原因、退款状态和恢复动作。</span></div>
+          </article>
+
+          <article class="flow-lane">
+            <header><h2>钱包：法律同意解锁支付</h2><p>余额、订阅与一次性积分是同一页面的三个层级，Telegram invoice 是唯一支付出口。</p></header>
+            <ol class="flow-steps">
+              <li><b>查看余额</b><span>当前可用 credits</span></li>
+              <li class="decision"><b>确认条款</b><span>未同意时禁用购买</span></li>
+              <li><b>选择商品</b><span>订阅或一次购买</span></li>
+              <li class="flow-steps__emphasis"><b>Telegram 支付</b><span>打开官方 invoice</span></li>
+              <li><b>服务端确认</b><span>到账后刷新余额</span></li>
+            </ol>
+            <div class="flow-rule"><svg><use href="#icon-check" /></svg><span><b>成功标准</b>客户端 paid 不直接加款；等待 successful_payment 后刷新，避免重复入账。</span></div>
+          </article>
+        </div>
+
+        <div class="pattern-grid">
+          <section class="pattern-block">
+            <h2>页面层级</h2>
+            <div class="layer-diagram">
+              <span><b>0</b>Telegram 容器</span>
+              <span><b>1</b>根页面 + 固定导航</span>
+              <span><b>2</b>模板 / 任务全屏详情</span>
+              <span><b>3</b>确认、支付、系统选择器</span>
+              <span><b>4</b>Toast 与即时反馈</span>
+            </div>
+          </section>
+          <section class="pattern-block">
+            <h2>反馈放置</h2>
+            <dl class="placement-list">
+              <div><dt>字段问题</dt><dd>字段下方，保持可编辑</dd></div>
+              <div><dt>区域失败</dt><dd>区域内横幅，提供重试</dd></div>
+              <div><dt>动作结果</dt><dd>Toast，3.5 秒，可读屏播报</dd></div>
+              <div><dt>不可逆动作</dt><dd>确认层，明确对象与后果</dd></div>
+            </dl>
+          </section>
+          <section class="pattern-block">
+            <h2>输入与无障碍</h2>
+            <dl class="placement-list">
+              <div><dt>触控目标</dt><dd>最小 44×44 px</dd></div>
+              <div><dt>键盘</dt><dd>Tab、方向键、Home/End</dd></div>
+              <div><dt>焦点</dt><dd>2 px 外描边，不被底栏遮挡</dd></div>
+              <div><dt>RTL / 长文案</dt><dd>不截断核心动作，允许换行</dd></div>
+            </dl>
+          </section>
+          <section class="pattern-block">
+            <h2>触觉与动效</h2>
+            <dl class="placement-list">
+              <div><dt>切换 / 筛选</dt><dd>selectionChanged</dd></div>
+              <div><dt>成功 / 失败</dt><dd>notificationOccurred</dd></div>
+              <div><dt>页面切换</dt><dd>180 ms，位移不超过 8 px</dd></div>
+              <div><dt>减少动态</dt><dd>保留状态，不做位移与循环动画</dd></div>
+            </dl>
+          </section>
+        </div>
+
+        <section class="evidence-strip" aria-labelledby="evidence-title">
+          <header><h2 id="evidence-title">从现有页面提炼，而非另起炉灶</h2><p>首页、创作、任务、钱包四个真实页面构成组件系统的证据来源。</p></header>
+          <div>
+            <figure><img src="../../output/playwright/component-audit-home.png" alt="现有小程序首页" /><figcaption>首页 · 内容发现</figcaption></figure>
+            <figure><img src="../../output/playwright/component-audit-create.png" alt="现有小程序创作页" /><figcaption>创作 · 单屏任务</figcaption></figure>
+            <figure><img src="../../output/playwright/component-audit-jobs.png" alt="现有小程序作品页" /><figcaption>作品 · 任务状态</figcaption></figure>
+            <figure><img src="../../output/playwright/component-audit-wallet.png" alt="现有小程序钱包页" /><figcaption>钱包 · 支付门槛</figcaption></figure>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./system.js"></script>
+  </body>
+</html>

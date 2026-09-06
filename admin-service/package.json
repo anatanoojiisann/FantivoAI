@@ -1,0 +1,14 @@
+{
+  "name": "aurax-admin-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "../node_modules/.bin/wrangler dev --local --port 8788 --var ENVIRONMENT:development",
+    "typecheck": "../node_modules/.bin/tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts",
+    "check:release": "node scripts/check-release.mjs",
+    "migrate:local": "../node_modules/.bin/wrangler d1 migrations apply aurax-admin --local",
+    "deploy": "npm run typecheck && npm run check:release && ../node_modules/.bin/wrangler deploy"
+  }
+}

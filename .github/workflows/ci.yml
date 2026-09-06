@@ -1,0 +1,30 @@
+name: Validate Fantivo
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+            admin/package-lock.json
+      - run: npm run setup
+      - run: npm test
+      - run: npm run check:bundle
+        env:
+          WRANGLER_SEND_METRICS: "false"
+      - run: npm run check:release
+      - run: npm --prefix admin-service run check:release
+      - run: git diff --exit-code

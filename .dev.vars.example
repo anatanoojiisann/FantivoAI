@@ -1,0 +1,7 @@
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_WEBHOOK_SECRET=
+OPEN_PLATFORM_API_KEY="tgbp_live_replace-me"
+OPEN_PLATFORM_CALLBACK_SECRET="replace-with-platform-callback-secret"
+BOT_ADMIN_TELEGRAM_IDS="123456789"
+ADMIN_SYNC_BASE_URL="http://localhost:8788"
+ADMIN_SYNC_SECRET="use-the-same-value-as-admin-service-admin-ingest-secret"
