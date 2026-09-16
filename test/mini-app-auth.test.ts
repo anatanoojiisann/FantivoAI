@@ -46,3 +46,12 @@ test("rejects expired initData", async () => {
   const initData = await signedInitData({ auth_date: String(NOW - 301) });
   await assert.rejects(() => validateTelegramInitData(initData, BOT_TOKEN, { nowSeconds: NOW, maxAgeSeconds: 300 }), /expired/);
 });
+
+test("authentication diagnostics distinguish expiry, tampering and invalid signed dates", async () => {
+  await assert.rejects(validateTelegramInitData(await signedInitData({ auth_date: String(NOW - 301) }), BOT_TOKEN, { nowSeconds: NOW, maxAgeSeconds: 300 }), { reason: "session_expired" });
+  await assert.rejects(validateTelegramInitData((await signedInitData()).replace("test_user", "attacker"), BOT_TOKEN, { nowSeconds: NOW }), { reason: "invalid_signature" });
+  for (const value of [String(NOW + 31), `${NOW}garbage`, ""]) {
+    await assert.rejects(validateTelegramInitData(await signedInitData({ auth_date: value }), BOT_TOKEN, { nowSeconds: NOW }), { reason: "invalid_auth_date" });
+  }
+  await assert.rejects(validateTelegramInitData(await signedInitData({ user: "null" }), BOT_TOKEN, { nowSeconds: NOW }), { reason: "invalid_user" });
+});

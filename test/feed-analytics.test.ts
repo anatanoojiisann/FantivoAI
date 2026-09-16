@@ -42,6 +42,16 @@ test("new Mini App sections record reach, navigation, empty feeds and retry acti
   assert.match(miniApp, /jobs_empty_state/);
 });
 
+test("creation entry and generate intent are tracked before submission", () => {
+  assert.match(miniApp, /track\("creation_viewed",\s*\{/);
+  assert.match(miniApp, /entry_point:\s*source/);
+  assert.match(miniApp, /previous_page:\s*previousPage/);
+  assert.match(miniApp, /track\("generate_clicked",\s*\{/);
+  assert.match(miniApp, /validation_result:\s*validationBlockReason \? "blocked" : "accepted"/);
+  assert.match(miniApp, /validation_block_reason:\s*validationBlockReason/);
+  assert.match(miniApp, /if \(validationBlockReason \|\| !data\) \{[\s\S]*?return;[\s\S]*?track\("generation_submitted", \{ \.\.\.eventProperties, request_id: requestId \}\)/);
+});
+
 test("bottom navigation switches four exclusive app pages instead of scrolling a long document", () => {
   for (const page of ["home", "create", "jobs", "wallet"]) {
     assert.match(miniApp, new RegExp(`data-app-page="${page}"`));

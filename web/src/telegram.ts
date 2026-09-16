@@ -72,6 +72,11 @@ function browserFallback(): TelegramWebApp {
 
 export function telegramContext(): TelegramContext {
   const webApp = window.Telegram?.WebApp;
-  if (webApp?.initData && webApp.platform && webApp.platform !== "unknown") return { webApp, isTelegram: true };
+  // Platform is descriptive metadata. Only the server can validate initData.
+  if (webApp?.initData) return { webApp, isTelegram: true };
   return { webApp: browserFallback(), isTelegram: false };
+}
+
+export function miniAppLaunchMode(isDevelopment: boolean, hasInitData: boolean) {
+  return hasInitData ? "telegram" : isDevelopment ? "preview" : "blocked";
 }

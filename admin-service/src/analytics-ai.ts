@@ -43,7 +43,7 @@ const ANALYTICS_TOOLS = [
   {
     type: "function",
     name: "get_conversion_funnel",
-    description: "读取打开、Feed、生成、发票和支付各环节的去重用户数；可限定一个 acquisition_source。分析渠道质量和转化时使用。",
+    description: "读取打开、初始化、Feed、进入创作、点击生成、任务创建、客户端观测完成、查看结果、发票和支付的独立去重用户数；非按顺序完成的漏斗，不能直接当作转化率。可限定 acquisition_source。",
     parameters: {
       type: "object",
       properties: {

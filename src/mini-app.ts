@@ -22,6 +22,23 @@ const REQUEST_ID_PATTERN = /^[a-zA-Z0-9_-]{16,80}$/;
 const ASPECT_RATIO_PATTERN = /^\d{1,2}:\d{1,2}$/;
 
 export async function miniAppApi(request: Request, env: Env): Promise<Response> {
+  const startedAt = Date.now();
+  const response = await handleMiniAppApi(request, env);
+  console.log(JSON.stringify({
+    event: "mini_app_request_completed", method: request.method,
+    endpoint: new URL(request.url).pathname.replace(/\/(template|asset)\/[^/]+/, "/$1/:id").replace(/\/generation-jobs\/[^/]+\/cancel$/, "/generation-jobs/:id/cancel").replace(/\/orders\/[^/]+$/, "/orders/:id"),
+    app_session_id: safeCorrelationId(request.headers.get("X-App-Session-Id")),
+    request_id: safeCorrelationId(request.headers.get("X-Request-Id")),
+    status: response.status, duration_ms: Date.now() - startedAt,
+  }));
+  return response;
+}
+
+function safeCorrelationId(value: string | null) {
+  return value && REQUEST_ID_PATTERN.test(value) ? value : "";
+}
+
+async function handleMiniAppApi(request: Request, env: Env): Promise<Response> {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: apiHeaders() });
 
   try {
@@ -31,15 +48,22 @@ export async function miniAppApi(request: Request, env: Env): Promise<Response> 
     const url = new URL(request.url);
 
     if (request.method === "GET" && url.pathname === "/api/bootstrap") {
+      const timed = async <T>(dependency: string, operation: () => Promise<T>) => {
+        const startedAt = Date.now();
+        let succeeded = false;
+        try { const result = await operation(); succeeded = true; return result; }
+        finally { console.log(JSON.stringify({ event: "mini_app_bootstrap_dependency", dependency, succeeded, duration_ms: Date.now() - startedAt, app_session_id: safeCorrelationId(request.headers.get("X-App-Session-Id")) })); }
+      };
+      const userReady = timed("user_upsert", () => platform.upsertUser(user, "Mini App"));
       const [userBootstrap, { jobs }, generationConfiguration, creditPacks, subscriptionPlans, subscription, modelCatalog, personaCatalog] = await Promise.all([
-        bootstrapMiniAppUser(env, platform, user, authenticated.startParam),
-        platform.jobs(user),
-        platform.generationConfiguration(),
-        loadAdminCreditPacks(env, CREDIT_PACKS, "Mini App", TERMS_VERSION),
-        loadAdminSubscriptionPlans(env, SUBSCRIPTION_PLANS, "Mini App", TERMS_VERSION),
-        userSubscription(env, user.id),
-        platform.models().catch(() => null),
-        platform.personas(),
+        userReady.then((result) => timed("user_benefits", () => bootstrapMiniAppUser(env, platform, user, authenticated.startParam, result))),
+        userReady.then(() => timed("jobs", () => platform.jobs(user))),
+        timed("generation_configuration", () => platform.generationConfiguration()),
+        timed("credit_packs", () => loadAdminCreditPacks(env, CREDIT_PACKS, "Mini App", TERMS_VERSION)),
+        timed("subscription_plans", () => loadAdminSubscriptionPlans(env, SUBSCRIPTION_PLANS, "Mini App", TERMS_VERSION)),
+        timed("subscription", () => userSubscription(env, user.id)),
+        timed("models", () => platform.models()).catch(() => null),
+        timed("personas", () => platform.personas()),
       ]);
       const referralRewardApplied = await recordSuccessfulReferralJobs(env, platform.externalUserId(user), jobs);
       let wallet = userBootstrap.wallet;
@@ -147,7 +171,7 @@ export async function miniAppApi(request: Request, env: Env): Promise<Response> 
         prompt,
         durationSeconds,
         aspectRatio,
-      })), 201);
+      }), requestId), 201);
     }
 
     if (request.method === "POST" && url.pathname === "/api/generation-jobs/image") {
@@ -178,7 +202,7 @@ export async function miniAppApi(request: Request, env: Env): Promise<Response> 
         imageUrl: upload.upload.url,
         durationSeconds,
         aspectRatio,
-      })), 201);
+      }), requestId), 201);
     }
 
     const contentGenerationMatch = /^\/api\/content\/(template|asset)\/([^/]+)\/generation-jobs\/(text|image)$/.exec(url.pathname);
@@ -209,7 +233,7 @@ export async function miniAppApi(request: Request, env: Env): Promise<Response> 
           userPrompt: prompt,
           durationSeconds,
           aspectRatio,
-        })), 201);
+        }), requestId), 201);
       }
 
       const contentType = (request.headers.get("Content-Type") || "").split(";", 1)[0].toLowerCase();
@@ -231,7 +255,7 @@ export async function miniAppApi(request: Request, env: Env): Promise<Response> 
       const result = kind === "asset"
         ? await platform.followAsset({ user, idempotencyKey, assetId: contentId, personaCode, userPrompt: prompt, imageUrl: upload.upload.url, durationSeconds, aspectRatio })
         : await platform.createFromTemplate({ user, idempotencyKey, templateId: contentId, personaCode, userPrompt: prompt, imageUrl: upload.upload.url, durationSeconds, aspectRatio });
-      return json(publicJobResult(result), 201);
+      return json(publicJobResult(result, requestId), 201);
     }
 
     const paymentOrderMatch = /^\/api\/payments\/telegram-stars\/orders\/(ord_[a-f0-9-]{32,48})$/i.exec(url.pathname);
@@ -326,28 +350,23 @@ export async function miniAppApi(request: Request, env: Env): Promise<Response> 
   }
 }
 
-async function bootstrapMiniAppUser(env: Env, platform: OpenPlatformClient, user: TelegramUser, startParam: string) {
-  const result = await platform.upsertUser(user, "Mini App");
-  let referral = unavailableReferral();
-  try {
-    referral = await bootstrapAdminReferral(env, platform.externalUserId(user), startParam);
-  } catch (error) {
-    console.error(JSON.stringify({ event: "referral_bootstrap_failed", externalUserId: platform.externalUserId(user), error: String(error) }));
-  }
-  try {
-    const gift = await claimAdminNewUserGift(env, platform.externalUserId(user));
-    return {
-      wallet: gift.wallet || result.wallet,
-      newUserGift: {
-        credits: gift.eligible ? gift.credits : 0,
-        grantedNow: gift.applied,
-      },
-      referral,
-    };
-  } catch (error) {
-    console.error(JSON.stringify({ event: "new_user_gift_claim_failed", externalUserId: platform.externalUserId(user), error: String(error) }));
-    return { wallet: result.wallet, newUserGift: { credits: 0, grantedNow: false }, referral };
-  }
+async function bootstrapMiniAppUser(env: Env, platform: OpenPlatformClient, user: TelegramUser, startParam: string, result: { wallet: { balance: number; version: number } }) {
+  // Both depend on the upsert, but neither depends on the other.
+  const [referral, gift] = await Promise.all([
+    bootstrapAdminReferral(env, platform.externalUserId(user), startParam).catch(() => {
+      console.error(JSON.stringify({ event: "referral_bootstrap_failed", externalUserId: platform.externalUserId(user) }));
+      return unavailableReferral();
+    }),
+    claimAdminNewUserGift(env, platform.externalUserId(user)).catch(() => {
+      console.error(JSON.stringify({ event: "new_user_gift_claim_failed", externalUserId: platform.externalUserId(user) }));
+      return null;
+    }),
+  ]);
+  return {
+    wallet: gift?.wallet || result.wallet,
+    newUserGift: { credits: gift?.eligible ? gift.credits : 0, grantedNow: gift?.applied || false },
+    referral,
+  };
 }
 
 async function authenticatedUser(request: Request, env: Env) {
@@ -583,7 +602,8 @@ function publicJob(job: OpenPlatformJob) {
   };
 }
 
-function publicJobResult(result: { job: OpenPlatformJob; replayed: boolean }) {
+function publicJobResult(result: { job: OpenPlatformJob; replayed: boolean }, requestId: string) {
+  console.log(JSON.stringify({ event: "mini_app_generation_created", request_id: requestId, job_id: result.job.id, replayed: result.replayed }));
   return { job: publicJob(result.job), replayed: result.replayed };
 }
 
@@ -611,9 +631,13 @@ function decodeHeader(value: string | null) {
 }
 
 function apiError(error: unknown) {
-  if (error instanceof MiniAppAuthError) return problem("unauthorized", error.message, 401);
+  if (error instanceof MiniAppAuthError) {
+    console.error(JSON.stringify({ event: "mini_app_auth_failed", reason: error.reason }));
+    return problem(error.reason === "session_expired" ? "session_expired" : "unauthorized", error.message, 401);
+  }
   if (error instanceof MiniAppInputError) return problem(error.code, error.message, error.status);
   if (error instanceof OpenPlatformError) {
+    if (error.code === "request_timeout") return problem("request_timeout", "请求超时，请稍后重试。", 504);
     if (error.code === "home_profile_not_configured") return problem(error.code, "个性化推荐暂时不可用。", 503);
     if (error.code === "insufficient_credits") return problem(error.code, "credits 不足，请先充值。", 402);
     if (error.code === "limit_exceeded") return problem(error.code, "当前任务较多，请稍后再试。", 429);

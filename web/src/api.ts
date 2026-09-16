@@ -1,4 +1,5 @@
 import type { CreditPack, SubscriptionPlan, PaymentOrderStatus } from "../../shared/contracts";
+import { RequestTimeoutError, withRequestDeadline } from "../../shared/request-deadline";
 export type { CreditPack, SubscriptionPlan } from "../../shared/contracts";
 
 export type MiniAppUser = {
@@ -173,10 +174,18 @@ export class ApiError extends Error {
 }
 
 export class MiniAppApi {
-  constructor(private readonly initData: string) {}
+  constructor(private readonly initData: string, private readonly appSessionId = "", private readonly timeoutMs?: number) {}
 
-  bootstrap() {
-    return this.request<Bootstrap>("/api/bootstrap");
+  async bootstrap() {
+    const value = await this.request<Bootstrap>("/api/bootstrap");
+    if (!value.user || !Number.isSafeInteger(value.user.id) || !value.wallet || !Number.isFinite(value.wallet.balance)
+      || !value.generation || typeof value.generation.model !== "string"
+      || !Array.isArray(value.generation.durationOptions) || !Array.isArray(value.generation.aspectRatios)
+      || !Array.isArray(value.jobs) || !Array.isArray(value.personas) || !Array.isArray(value.creditPacks)
+      || !Array.isArray(value.subscriptionPlans) || !value.legal || !value.newUserGift || !value.referral) {
+      throw new ApiError("invalid_response", "初始化响应不完整。", 200);
+    }
+    return value;
   }
 
   home(locale: string, feedSessionId: string, personaCode = "") {
@@ -204,7 +213,7 @@ export class MiniAppApi {
   createTextJob(prompt: string, durationSeconds: number, aspectRatio: string, requestId: string) {
     return this.request<JobResult>("/api/generation-jobs/text", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
       body: JSON.stringify({ prompt, durationSeconds, aspectRatio, requestId }),
     });
   }
@@ -227,7 +236,7 @@ export class MiniAppApi {
   createContentTextJob(content: Content, prompt: string, durationSeconds: number, aspectRatio: string, requestId: string, personaCode = "") {
     return this.request<JobResult>(`/api/content/${content.kind}/${encodeURIComponent(content.id)}/generation-jobs/text`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Request-Id": requestId },
       body: JSON.stringify({ prompt, durationSeconds, aspectRatio, requestId, personaCode }),
     });
   }
@@ -285,14 +294,25 @@ export class MiniAppApi {
     const headers = new Headers(init.headers);
     headers.set("Authorization", `tma ${this.initData}`);
     headers.set("Accept", "application/json");
-    let response: Response;
+    if (this.appSessionId) headers.set("X-App-Session-Id", this.appSessionId);
+    const timeout = this.timeoutMs ?? (init.method === "POST" ? 60_000 : path === "/api/bootstrap" ? 35_000 : 20_000);
     try {
-      response = await fetch(path, { ...init, headers });
-    } catch {
+      return await withRequestDeadline(timeout, async (signal) => {
+        const response = await fetch(path, { ...init, headers, signal });
+        let payload: T & { code?: string; message?: string };
+        try {
+          payload = await response.json();
+        } catch {
+          throw new ApiError("invalid_response", "服务返回了无效响应。", response.status);
+        }
+        if (!payload || typeof payload !== "object") throw new ApiError("invalid_response", "服务返回了无效响应。", response.status);
+        if (!response.ok) throw new ApiError(payload.code || "request_failed", payload.message || "请求失败，请稍后重试。", response.status);
+        return payload;
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      if (error instanceof RequestTimeoutError) throw new ApiError("request_timeout", "请求超时，请重试。", 0);
       throw new ApiError("network_error", "无法连接服务，请检查网络后重试。", 0);
     }
-    const payload = await response.json().catch(() => ({ code: "invalid_response", message: "服务返回了无效响应。" })) as T & { code?: string; message?: string };
-    if (!response.ok) throw new ApiError(payload.code || "request_failed", payload.message || "请求失败，请稍后重试。", response.status);
-    return payload;
   }
 }

@@ -131,7 +131,7 @@ test("every known Mini App API error has an intentional presentation", () => {
     "invalid_header", "invalid_identifier", "invalid_json", "invalid_locale", "invalid_persona", "invalid_prompt", "invalid_publication",
     "invalid_request", "invalid_request_id", "invalid_response", "job_not_found", "job_not_publishable", "limit_exceeded",
     "missing_image", "network_error", "not_found", "platform_unavailable", "product_not_found", "publication_service_unavailable",
-    "request_failed", "subscription_already_active", "subscription_not_found", "subscription_unavailable", "terms_not_accepted",
+    "request_failed", "request_timeout", "session_expired", "subscription_already_active", "subscription_not_found", "subscription_unavailable", "terms_not_accepted",
     "unauthorized", "unsupported_aspect_ratio", "unsupported_duration", "unsupported_image", "upstream_unavailable",
   ];
   assert.deepEqual([...KNOWN_API_ERROR_CODES].sort(), expectedCodes.sort());

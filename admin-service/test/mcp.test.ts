@@ -178,6 +178,23 @@ test("a valid RS256 token lets ChatGPT read an aggregate acquisition breakdown",
   assert.deepEqual(calls, [jwksUrl, "https://us.posthog.com/api/projects/123/query/"]);
 });
 
+test("generation stages retain independent-count semantics through the MCP contract", async (context) => {
+  context.mock.method(globalThis, "fetch", async (input: unknown) => {
+    if (String(input) === jwksUrl) return Response.json({ keys: [publicJwk] });
+    return Response.json({ results: [["mini_app_opened", 12], ["generation_succeeded", 3], ["generation_result_viewed", 2]] });
+  });
+  const result = await mcp("tools/call", {
+    name: "get_posthog_conversion_funnel",
+    arguments: { from: "2026-09-01", to: "2026-09-16", source: null },
+  }, { token: await jwt() });
+  assert.equal(result.payload.result.isError, undefined);
+  const content = result.payload.result.structuredContent;
+  assert.equal(content.counting, "independent_unique_users");
+  assert.equal(content.ordered, false);
+  assert.deepEqual(content.steps.find((step: { event: string }) => step.event === "generation_succeeded"), { event: "generation_succeeded", users: 3 });
+  assert.deepEqual(content.steps.find((step: { event: string }) => step.event === "generation_result_viewed"), { event: "generation_result_viewed", users: 2 });
+});
+
 test("JWT validation rejects wrong issuer, audience, scope, subject, expiry, and signature", async (context) => {
   const restoreFetch = mockJwks();
   context.after(restoreFetch);

@@ -82,7 +82,7 @@ class DemoAdminRepository implements AdminRepository {
   async loadMiniAppAnalytics(): Promise<MiniAppAnalytics> {
     return {
       configured: true, status: "ready", from: "2026-07-30", to: "2026-08-05", fetchedAt: new Date().toISOString(), responseTimeMs: 42,
-      totals: { mini_app_opened: 842, personalized_feed_loaded: 774, personalized_feed_failed: 11, home_item_impression: 5_210, home_item_clicked: 618, generation_submitted: 196, generation_created: 181, generation_failed: 15, wallet_opened: 122, credit_pack_selected: 74, invoice_opened: 68, payment_result_received: 51, payment_paid: 51, job_cancelled: 6 },
+      totals: { mini_app_opened: 842, personalized_feed_loaded: 774, personalized_feed_failed: 11, home_item_impression: 5_210, home_item_clicked: 618, creation_viewed: 284, generate_clicked: 203, generation_submitted: 196, generation_created: 181, generation_failed: 15, wallet_opened: 122, credit_pack_selected: 74, invoice_opened: 68, payment_result_received: 51, payment_paid: 51, job_cancelled: 6 },
       distributions: { locales: [{ value: "zh-CN", count: 402 }, { value: "en", count: 238 }], personas: [{ value: "creator", count: 774 }], rankings: [{ value: "seeded-shuffle-v1", count: 774 }], modes: [{ value: "text", count: 121 }, { value: "image", count: 75 }], acquisitionSources: [{ value: "xhs", count: 118 }, { value: "telegram_organic", count: 92 }], acquisitionCampaigns: [{ value: "summer_2026", count: 81 }], acquisitionContent: [{ value: "creator-01", count: 36 }] },
     };
   }

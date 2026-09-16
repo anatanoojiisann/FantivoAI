@@ -88,9 +88,9 @@ function createPosthogMcpServer(env: Env, resourceMetadataUrl: string) {
 
   server.registerTool("get_posthog_conversion_funnel", {
     title: "Get PostHog conversion funnel",
-    description: "Use this when the user asks about unique-user conversion from Mini App open through feed, generation, invoice, and paid events, optionally for one acquisition source.",
+    description: "Read independent unique-user counts for Mini App open, initialization, feed, creation view, generate click, task creation, client-observed completion, result view, invoice and payment. These are not ordered funnel conversions. Optionally filter by acquisition source.",
     inputSchema: { ...dateRangeInput, source: z.string().regex(/^[a-z0-9._-]{1,64}$/).nullable().optional().describe("Acquisition source, or null for all sources") },
-    outputSchema: { from: z.string(), to: z.string(), source: z.string(), steps: z.array(z.object({ event: z.string(), users: z.number() })) },
+    outputSchema: { from: z.string(), to: z.string(), source: z.string(), counting: z.literal("independent_unique_users"), ordered: z.literal(false), steps: z.array(z.object({ event: z.string(), users: z.number() })) },
     annotations: analyticsAnnotations,
     _meta: { ...oauthMeta, "openai/toolInvocation/invoking": "Reading conversion funnel…", "openai/toolInvocation/invoked": "Conversion funnel loaded" },
   }, async ({ from, to, source }, extra) => withAuthorizedAnalytics(env, extra.authInfo, resourceMetadataUrl, async () => {

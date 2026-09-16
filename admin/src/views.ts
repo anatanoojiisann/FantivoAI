@@ -270,9 +270,14 @@ function miniAppAnalyticsPanel(state: IntegrationState<MiniAppAnalytics>) {
     <header class="panel-header"><div><span class="eyebrow">MINI APP · POSTHOG</span><h2>小程序行为</h2></div><small>${escapeHtml(analytics.from)} – ${escapeHtml(analytics.to)} · ${analytics.responseTimeMs} ms</small></header>
     <div class="mini-metric-grid">
       ${miniMetric("小程序打开", total("mini_app_opened"), "mini_app_opened")}
+      ${miniMetric("初始化成功", total("mini_app_initialized"), `${total("mini_app_bootstrap_failed")} 次失败`)}
       ${miniMetric("首次观察用户", newUsers, "按用户首次打开去重")}
       ${miniMetric("Feed 成功载入", total("personalized_feed_loaded"), `${total("personalized_feed_failed")} 次失败`)}
       ${miniMetric("推荐点击率", impressions ? `${(clicks / impressions * 100).toFixed(1)}%` : "0.0%", `${formatNumber(clicks)} / ${formatNumber(impressions)}`)}
+      ${miniMetric("进入创作", total("creation_viewed"), "creation_viewed")}
+      ${miniMetric("点击生成", total("generate_clicked"), `${total("generation_submitted")} 次通过校验`)}
+      ${miniMetric("观测到生成成功", total("generation_succeeded"), `${total("generation_completion_failed")} 次失败或取消`)}
+      ${miniMetric("查看结果", total("generation_result_viewed"), `${total("jobs_refresh_failed")} 次状态刷新失败`)}
       ${miniMetric("任务创建率", submitted ? `${(created / submitted * 100).toFixed(1)}%` : "0.0%", `${created} 创建 · ${total("generation_failed")} 失败`)}
       ${miniMetric("取消率", created ? `${(total("job_cancelled") / created * 100).toFixed(1)}%` : "0.0%", `${total("job_cancelled")} 个任务`)}
     </div>

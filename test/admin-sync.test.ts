@@ -43,3 +43,20 @@ test("Bot and Mini App credit packs come from the active admin configuration", a
     { id: "mini", title: "Mini Pack", description: "Mini only", stars: 20, credits: 200 },
   ]);
 });
+
+test("concurrent bootstrap configuration readers share one request and retry after failure", async () => {
+  let calls = 0;
+  let fail = true;
+  const env = { ADMIN_SERVICE: { fetch: async () => {
+    calls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (fail) return new Response("unavailable", { status: 503 });
+    return Response.json({ configuration: {} });
+  } } } as unknown as Env;
+  await Promise.all([loadAdminCreditPacks(env, [], "Mini App", "test"), loadAdminSubscriptionPlans(env, [], "Mini App", "test")]);
+  assert.equal(calls, 1);
+  fail = false;
+  await loadAdminCreditPacks(env, [], "Mini App", "test");
+  await loadAdminSubscriptionPlans(env, [], "Mini App", "test");
+  assert.equal(calls, 2);
+});

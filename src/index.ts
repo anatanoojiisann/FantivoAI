@@ -379,6 +379,7 @@ async function platformEvent(request: Request, env: Env) {
   if (payload.type !== "generation.completed") return Response.json({ ignored: true });
   const telegramId = telegramIdFromExternal(payload.job.externalUserId);
   if (!telegramId) return Response.json({ ignored: true });
+  console.log(JSON.stringify({ event: "generation_completion_received", job_id: payload.job.id, status: payload.job.status, has_output: Boolean(payload.job.outputUrl), failure_code: payload.job.failureCode || "" }));
   if (payload.job.status === "succeeded") {
     try {
       await recordAdminReferralGeneration(env, payload.job.externalUserId, payload.job.id, payload.job.completedAt || payload.job.finishedAt);

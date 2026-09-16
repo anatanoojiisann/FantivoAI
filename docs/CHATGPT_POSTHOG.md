@@ -14,7 +14,7 @@ ChatGPT 会调用 `https://<admin-worker>/mcp`，Admin Worker 再使用服务端
 |---|---|
 | `get_posthog_overview` | 指定日期内的事件总量、来源和常用维度总览 |
 | `get_posthog_acquisition_breakdown` | 按 source、campaign 或 content 读取首次来源用户数 |
-| `get_posthog_conversion_funnel` | 读取打开、Feed、生成、账单和付费的去重用户漏斗，可按来源过滤 |
+| `get_posthog_conversion_funnel` | 读取打开、初始化、Feed、进入创作、点击生成、任务创建、客户端观测完成、查看结果、账单和付费的独立去重用户数，可按来源过滤；不保证顺序，不可直接视为漏斗转化率 |
 
 这是结构化时间序列分析，不是文档知识库，因此没有添加 `search`、`fetch` 或任意 HogQL/SQL 工具。所有工具只读，日期范围最多 93 天，只返回聚合值；不会返回 Telegram ID、用户名、Prompt、媒体或任何 Secret。
 

@@ -1,13 +1,13 @@
-import "./style.css";
 import "@phosphor-icons/web/regular";
 import "@phosphor-icons/web/fill";
 import { acquisitionFromLaunch } from "./acquisition";
-import { analyticsConfigured, flushAnalytics, identifyUser, initAnalytics, track } from "./analytics";
+import { analyticsConfigured, appSessionId, flushAnalytics, identifyUser, track } from "./analytics";
 import { ApiError, MiniAppApi, type Bootstrap, type Content, type HomeFeed, type HomeItem, type Job } from "./api";
 import { apiErrorPresentation, jobFailurePresentation } from "./error-copy";
 import { initialLocale, isRtl, LOCALE_NAMES, saveLocale, SUPPORTED_LOCALES, translate, type Locale } from "./i18n";
 import { IDLE_SUBSCRIPTION_PURCHASE, reduceSubscriptionPurchase, type SubscriptionPurchaseEvent } from "./subscription-purchase";
 import { telegramContext } from "./telegram";
+import { JobLifecycle } from "./job-lifecycle";
 
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("App root element was not found");
@@ -17,19 +17,21 @@ const acquisition = acquisitionFromLaunch({
   startParam: webApp.initDataUnsafe.start_param,
   url: window.location.href,
 });
-initAnalytics(isTelegram, acquisition);
 let locale: Locale = initialLocale(webApp.initDataUnsafe.user?.language_code);
 const t = (key: Parameters<typeof translate>[1], variables?: Record<string, string | number>) => translate(locale, key, variables);
 document.documentElement.lang = locale;
 document.documentElement.dir = isRtl(locale) ? "rtl" : "ltr";
 document.documentElement.dataset.locale = locale;
-webApp.ready();
-webApp.expand();
-webApp.disableVerticalSwipes?.();
-webApp.setHeaderColor?.("#08080d");
-webApp.setBackgroundColor?.("#08080d");
+try {
+  webApp.ready();
+  webApp.expand();
+  webApp.disableVerticalSwipes?.();
+  webApp.setHeaderColor?.("#08080d");
+  webApp.setBackgroundColor?.("#08080d");
+} catch { /* Optional Telegram presentation APIs must not block bootstrap. */ }
 
-const api = isTelegram ? new MiniAppApi(webApp.initData) : null;
+const api = isTelegram ? new MiniAppApi(webApp.initData, appSessionId) : null;
+const demoAllowed = import.meta.env.DEV && !isTelegram;
 let data: Bootstrap | null = null;
 let mode: "text" | "image" = "text";
 let selectedAspectRatio = "9:16";
@@ -41,7 +43,13 @@ let submitting = false;
 let subscriptionPurchase = IDLE_SUBSCRIPTION_PURCHASE;
 type WalletProductMode = "subscriptions" | "credits";
 let walletProductMode: WalletProductMode = "subscriptions";
-let appOpenedTracked = false;
+let bootstrapLoading = false;
+let bootstrapError: unknown = null;
+let authenticationFailed = false;
+let jobLifecycle: JobLifecycle | null = null;
+let jobsRefreshing = false;
+let jobsRefreshFailures = 0;
+let nextJobsRefreshAt = 0;
 let homeFeed: HomeFeed | null = null;
 let homeLoading = true;
 let homeFailed = false;
@@ -229,6 +237,7 @@ root.innerHTML = `
         <button id="jobs-refresh" class="icon-button" type="button" aria-label="${t("refreshJobs")}"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i></button>
       </div>
       <div id="jobs-filters" class="jobs-filters" role="group" aria-label="${t("filterCreations")}"></div>
+      <p id="jobs-refresh-error" role="status" hidden></p>
       <div id="jobs-list" class="jobs-list" aria-live="polite">
         <article class="job-card job-card--loading"><div></div><div></div><div></div></article>
       </div>
@@ -427,6 +436,7 @@ function pageFromLocation(): AppPage {
 
 function navigateToPage(nextPage: AppPage, source: string, historyMode: "push" | "replace" | "none" = "push") {
   const previousPage = activePage;
+  const pageChanged = previousPage !== nextPage || source === "initial";
   activePage = nextPage;
   document.documentElement.dataset.page = nextPage;
   document.querySelectorAll<HTMLElement>("[data-app-page]").forEach((page) => {
@@ -449,6 +459,18 @@ function navigateToPage(nextPage: AppPage, source: string, historyMode: "push" |
 
   window.scrollTo({ top: 0, behavior: "auto" });
   trackAppSection(nextPage);
+  if (nextPage === "create" && pageChanged) {
+    track("creation_viewed", {
+      entry_point: source,
+      previous_page: previousPage,
+      mode,
+      data_ready: Boolean(data),
+      has_source_content: Boolean(selectedContent),
+      source_content_kind: selectedContent?.kind || "",
+      locale,
+      telegram_platform: webApp.platform,
+    });
+  }
   if (source !== "initial" && source !== "browser_history") {
     track("mini_app_navigation_clicked", { destination: nextPage, source, locale });
     webApp.HapticFeedback?.selectionChanged();
@@ -566,10 +588,25 @@ function mockData(): Bootstrap {
 }
 
 async function loadBootstrap(quiet = false) {
+  if (bootstrapLoading || authenticationFailed) return;
+  bootstrapLoading = true;
+  const startedAt = performance.now();
+  const initial = !data;
+  track("mini_app_bootstrap_started", { initial });
   try {
     const hadData = Boolean(data);
-    if (!api) data = mockData();
-    else data = await api.bootstrap();
+    if (!api && !demoAllowed) throw new ApiError("unauthorized", "", 401);
+    const loaded = api ? await api.bootstrap() : mockData();
+    // A background wallet refresh must not overwrite newer creation/status data.
+    if (hadData && data) loaded.jobs = data.jobs;
+    data = loaded;
+    bootstrapError = null;
+    if (!jobLifecycle) {
+      let storage: Storage | undefined;
+      try { storage = sessionStorage; } catch { /* Storage is optional. */ }
+      jobLifecycle = new JobLifecycle(track, storage, `fantivo_job_lifecycle_${data.user.id}`);
+    }
+    jobLifecycle.observe(data.jobs);
     if (!hadData && data) {
       selectedAspectRatio = data.generation.aspectRatio;
       selectedDurationSeconds = data.generation.durationSeconds;
@@ -596,29 +633,28 @@ async function loadBootstrap(quiet = false) {
         first_touch_start_param: acquisition.telegram_start_param,
         first_touch_at: new Date().toISOString(),
       });
-      if (!appOpenedTracked) {
-        track("mini_app_opened", {
-          language: locale,
-          telegram_platform: webApp.platform,
-          color_scheme: webApp.colorScheme,
-          ...acquisition,
-        });
-        appOpenedTracked = true;
-      }
     }
+    track("mini_app_initialized", { initial, duration_ms: Math.round(performance.now() - startedAt), ...acquisition });
     renderData();
     if (!quiet) showWelcomeForEligibleUser();
   } catch (error) {
-    console.error(JSON.stringify({ event: "mini_app_bootstrap_failed", error: String(error) }));
-    track("mini_app_bootstrap_failed", analyticsError(error));
-    if (!quiet) renderFatal(error);
-    else toast(messageOf(error), "error");
+    bootstrapError = error;
+    console.error(JSON.stringify({ event: "mini_app_bootstrap_failed", ...analyticsError(error) }));
+    track("mini_app_bootstrap_failed", { ...analyticsError(error), initial, duration_ms: Math.round(performance.now() - startedAt) });
+    if (!handleAuthenticationFailure(error)) {
+      if (!quiet) renderFatal(error);
+      else toast(messageOf(error), "error");
+    }
+  } finally {
+    bootstrapLoading = false;
+    updateSubmitState();
   }
 }
 
 type HomeLoadReason = "initial" | "refresh" | "retry" | "persona";
 
 async function loadHome(reason: HomeLoadReason = "initial") {
+  if (!api && !demoAllowed) return;
   const requestVersion = ++homeRequestVersion;
   if (reason === "refresh" || reason === "persona") feedSessionId = replaceFeedSessionId();
   const startedAt = performance.now();
@@ -1492,6 +1528,7 @@ function openJobDetails(jobId: string) {
   webApp.HapticFeedback?.impactOccurred("light");
   track("job_details_opened", {
     job_id: job.id,
+    request_id: jobLifecycle?.requestId(job.id) || "",
     status: job.status.toLowerCase(),
     mode: job.mode || "unknown",
     model: job.model,
@@ -1501,6 +1538,7 @@ function openJobDetails(jobId: string) {
     has_input_image: Boolean(inputImageUrl),
     has_prompt: Boolean(prompt),
   });
+  if (hasOutput) track("generation_result_viewed", { job_id: job.id, request_id: jobLifecycle?.requestId(job.id) || "" });
 }
 
 function formatJobDate(value?: string) {
@@ -1840,10 +1878,26 @@ function titleCase(value: string) {
 
 function renderFatal(error: unknown) {
   const message = messageOf(error);
-  element("create-service-message-text").textContent = t("serviceUnavailable");
+  element("create-service-message-text").textContent = message;
   element<HTMLElement>("create-service-message").hidden = false;
+  element("create-service-retry").textContent = authenticationFailed ? t("openTelegram") : t("retry");
   element("jobs-list").innerHTML = `<div class="empty-state empty-state--error"><b>!</b><h3>${t("connectionFailed")}</h3><p>${escapeHtml(message)}</p><button id="retry-load" type="button">${t("retry")}</button></div>`;
-  element<HTMLButtonElement>("retry-load").addEventListener("click", () => void loadBootstrap());
+  element("retry-load").textContent = authenticationFailed ? t("openTelegram") : t("retry");
+  element<HTMLButtonElement>("retry-load").addEventListener("click", retryBootstrap);
+}
+
+function retryBootstrap() {
+  if (authenticationFailed) window.location.assign("https://t.me/fantivo_bot/app");
+  else void loadBootstrap();
+}
+
+function handleAuthenticationFailure(error: unknown) {
+  if (!(error instanceof ApiError) || !["unauthorized", "session_expired"].includes(error.code)) return false;
+  authenticationFailed = true;
+  bootstrapError = error;
+  renderFatal(error);
+  updateSubmitState();
+  return true;
 }
 
 function messageOf(error: unknown) {
@@ -1921,7 +1975,7 @@ function selectContentForCreation(content: Content) {
   });
 }
 
-function clearSelectedContent(clearReason: "user_removed" | "generation_succeeded" | "persona_changed" = "user_removed") {
+function clearSelectedContent(clearReason: "user_removed" | "generation_created" | "persona_changed" = "user_removed") {
   const previous = selectedContent;
   selectedContent = null;
   selectedContentPersonaCode = "";
@@ -1968,10 +2022,8 @@ function renderContentSelection() {
 }
 
 function updateSubmitState() {
-  const promptLength = promptInput.value.trim().length;
-  const validPrompt = selectedContent ? promptLength === 0 || promptLength >= 3 : promptLength >= 3;
-  const validContent = !selectedContent || selectedContent.canCreate && (selectedContent.requiredImageCount || 0) <= 1;
-  createButton.disabled = submitting || !data || !validPrompt || !validContent || (mode === "image" && !selectedFile);
+  // Keep validation failures actionable so a tap explains the missing input.
+  createButton.disabled = submitting;
   createButton.classList.toggle("is-loading", submitting);
   createButton.querySelector<HTMLElement>(".primary-button__label")!.textContent = submitting ? t("submitting") : t("generate");
   const creditCost = data?.generation.creditCost;
@@ -2007,32 +2059,48 @@ function chooseFile(file: File | null) {
   updateSubmitState();
 }
 
-async function submitCreation() {
-  if (!data || submitting) return;
+async function submitCreation(trigger: "button" | "form_submit") {
+  if (submitting) return;
   const prompt = promptInput.value.trim();
   const sourceContent = selectedContent;
-  if ((!sourceContent && prompt.length < 3) || (sourceContent && prompt.length > 0 && prompt.length < 3) || (mode === "image" && !selectedFile)) return;
-
-  submitting = true;
-  pendingRequestId ||= crypto.randomUUID();
-  updateSubmitState();
-  webApp.HapticFeedback?.impactOccurred("medium");
+  const validationBlockReason = generationValidationBlockReason(prompt, sourceContent);
+  if (!validationBlockReason) pendingRequestId ||= crypto.randomUUID();
   const eventProperties = {
     mode,
     prompt_length: prompt.length,
     has_image: Boolean(selectedFile),
-    model: data.generation.model,
+    model: data?.generation.model || "",
     duration_seconds: selectedDurationSeconds,
     aspect_ratio: selectedAspectRatio,
-    quality: data.generation.quality,
+    quality: data?.generation.quality || "",
     source_content_kind: sourceContent?.kind || "",
     source_content_id: sourceContent?.id || "",
   };
-  track("generation_submitted", eventProperties);
+  track("generate_clicked", {
+    ...eventProperties,
+    trigger,
+    validation_result: validationBlockReason ? "blocked" : "accepted",
+    validation_block_reason: validationBlockReason,
+    request_id: validationBlockReason ? "" : pendingRequestId,
+  });
+  if (validationBlockReason || !data) {
+    const message = validationBlockReason === "image_required" ? t("errorImageRequired")
+      : validationBlockReason === "content_unavailable" ? t("templateUnavailableDescription")
+      : validationBlockReason.startsWith("prompt_") ? t("errorInvalidPrompt", { max: data?.generation.maxPromptLength || 1_000 })
+      : bootstrapError ? messageOf(bootstrapError) : t("preparing");
+    toast(message, "error");
+    return;
+  }
+
+  submitting = true;
+  const requestId = pendingRequestId;
   try {
+    updateSubmitState();
+    track("generation_submitted", { ...eventProperties, request_id: requestId });
     let job: Job;
     let replayed = false;
     if (!api) {
+      if (!demoAllowed) throw new ApiError("unauthorized", "", 401);
       await new Promise((resolve) => window.setTimeout(resolve, 650));
       job = {
         id: `job_preview_${Date.now().toString(36)}`, status: "queued", progress: 4, mode: mode === "image" ? "image-to-video" : "text-to-video",
@@ -2046,44 +2114,58 @@ async function submitCreation() {
     } else {
       const result = sourceContent
         ? mode === "image"
-          ? await api.createContentImageJob(sourceContent, selectedFile!, prompt, selectedDurationSeconds, selectedAspectRatio, pendingRequestId, selectedContentPersonaCode)
-          : await api.createContentTextJob(sourceContent, prompt, selectedDurationSeconds, selectedAspectRatio, pendingRequestId, selectedContentPersonaCode)
+          ? await api.createContentImageJob(sourceContent, selectedFile!, prompt, selectedDurationSeconds, selectedAspectRatio, requestId, selectedContentPersonaCode)
+          : await api.createContentTextJob(sourceContent, prompt, selectedDurationSeconds, selectedAspectRatio, requestId, selectedContentPersonaCode)
         : mode === "image"
-          ? await api.createImageJob(selectedFile!, prompt, selectedDurationSeconds, selectedAspectRatio, pendingRequestId)
-          : await api.createTextJob(prompt, selectedDurationSeconds, selectedAspectRatio, pendingRequestId);
+          ? await api.createImageJob(selectedFile!, prompt, selectedDurationSeconds, selectedAspectRatio, requestId)
+          : await api.createTextJob(prompt, selectedDurationSeconds, selectedAspectRatio, requestId);
       job = result.job;
       replayed = result.replayed;
       data.jobs = [job, ...data.jobs.filter((item) => item.id !== job.id)];
     }
     track("generation_created", {
       ...eventProperties,
+      request_id: requestId,
+      job_id: job.id,
       credit_cost: job.creditCost,
       replayed,
     });
+    jobLifecycle?.created(job, requestId);
     pendingRequestId = "";
     promptInput.value = "";
     element("prompt-count").textContent = `0 / ${data.generation.maxPromptLength}`;
     chooseFile(null);
-    clearSelectedContent("generation_succeeded");
+    clearSelectedContent("generation_created");
     setMode("text", "reset");
     renderData();
     toast(t("taskSubmitted"), "success");
-    webApp.HapticFeedback?.notificationOccurred("success");
+    try { webApp.HapticFeedback?.notificationOccurred("success"); } catch { /* Optional feedback. */ }
     navigateToPage("jobs", "generation_success");
     if (api) window.setTimeout(() => void loadBootstrap(true), 900);
   } catch (error) {
-    track("generation_failed", { ...eventProperties, ...analyticsError(error) });
+    track("generation_failed", { ...eventProperties, request_id: requestId, ...analyticsError(error) });
+    handleAuthenticationFailure(error);
     if (error instanceof ApiError && error.code === "insufficient_credits") {
       openWallet("insufficient_credits");
       toast(t("insufficientCreditsInvite"), "error");
     } else {
       toast(messageOf(error), "error");
     }
-    webApp.HapticFeedback?.notificationOccurred("error");
+    try { webApp.HapticFeedback?.notificationOccurred("error"); } catch { /* Optional feedback. */ }
   } finally {
     submitting = false;
     updateSubmitState();
   }
+}
+
+function generationValidationBlockReason(prompt: string, sourceContent: Content | null) {
+  if (authenticationFailed || (!api && !demoAllowed)) return "authentication_required";
+  if (!data) return "bootstrap_not_ready";
+  if (sourceContent && (!sourceContent.canCreate || (sourceContent.requiredImageCount || 0) > 1)) return "content_unavailable";
+  if ((!sourceContent && prompt.length < 3) || (sourceContent && prompt.length > 0 && prompt.length < 3)) return "prompt_too_short";
+  if (prompt.length > data.generation.maxPromptLength) return "prompt_too_long";
+  if (mode === "image" && !selectedFile) return "image_required";
+  return "";
 }
 
 function openWallet(entryPoint: "balance" | "bottom_navigation" | "insufficient_credits") {
@@ -2401,8 +2483,12 @@ promptInput.addEventListener("input", () => {
 promptInput.addEventListener("focus", () => window.setTimeout(() => scrollCreateControlIntoView(promptInput), 220));
 imageInput.addEventListener("change", () => chooseFile(imageInput.files?.[0] || null));
 element<HTMLButtonElement>("image-remove").addEventListener("click", (event) => { event.preventDefault(); chooseFile(null); imageInput.value = ""; });
-element<HTMLFormElement>("create-form").addEventListener("submit", (event) => { event.preventDefault(); void submitCreation(); });
-element<HTMLButtonElement>("create-service-retry").addEventListener("click", () => void loadBootstrap());
+element<HTMLFormElement>("create-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const trigger = event instanceof SubmitEvent && event.submitter === createButton ? "button" : "form_submit";
+  void submitCreation(trigger);
+});
+element<HTMLButtonElement>("create-service-retry").addEventListener("click", retryBootstrap);
 element<HTMLButtonElement>("welcome-start").addEventListener("click", () => {
   closeWelcomeDialog();
   webApp.HapticFeedback?.impactOccurred("light");
@@ -2477,7 +2563,10 @@ element<HTMLFormElement>("job-publish-form").addEventListener("submit", (event) 
 });
 element<HTMLButtonElement>("job-create-again").addEventListener("click", createAgainFromActiveJob);
 jobVideoPlayer.addEventListener("error", () => {
-  if (activeJobVideo) element<HTMLElement>("job-video-error").hidden = false;
+  if (activeJobVideo) {
+    element<HTMLElement>("job-video-error").hidden = false;
+    track("job_video_playback_failed", { job_id: activeJobVideo.id, media_error_code: jobVideoPlayer.error?.code || 0 });
+  }
 });
 jobVideoDialog.addEventListener("cancel", () => { jobDetailCloseReason = "escape"; });
 jobVideoDialog.addEventListener("close", () => {
@@ -2540,7 +2629,8 @@ element("jobs-filters").addEventListener("click", (event) => {
 });
 element<HTMLButtonElement>("jobs-refresh").addEventListener("click", () => {
   track("jobs_refreshed");
-  void loadBootstrap(true);
+  if (data) void refreshJobs(true);
+  else retryBootstrap();
 });
 element("persona-selector").addEventListener("click", (event) => {
   const option = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-persona-code]");
@@ -2687,8 +2777,36 @@ if (isTelegram && !analyticsConfigured()) {
 void loadBootstrap();
 void loadHome();
 navigateToPage(activePage, "initial", "replace");
-if (api) window.setInterval(() => {
-  if (!document.hidden && data?.jobs.some((job) => IN_PROGRESS_JOB_STATUSES.has(job.status.toLowerCase()))) {
-    void api.jobs().then(({ jobs }) => { if (data) { data.jobs = jobs; renderJobs(); } }).catch(() => undefined);
+async function refreshJobs(manual = false) {
+  if (!api || !data || jobsRefreshing || authenticationFailed || bootstrapLoading || submitting) return;
+  if (!manual && Date.now() < nextJobsRefreshAt) return;
+  jobsRefreshing = true;
+  const startedAt = performance.now();
+  try {
+    const { jobs } = await api.jobs();
+    // Keep a just-created task if the upstream list is briefly behind.
+    const newJobs = data.jobs.filter((job) => !jobs.some((next) => next.id === job.id)
+      && jobLifecycle?.requestId(job.id) && IN_PROGRESS_JOB_STATUSES.has(job.status.toLowerCase()));
+    data.jobs = [...newJobs, ...jobs];
+    jobLifecycle?.observe(jobs);
+    renderJobs();
+    element<HTMLElement>("jobs-refresh-error").hidden = true;
+    if (jobsRefreshFailures) track("jobs_refresh_recovered", { failures: jobsRefreshFailures });
+    jobsRefreshFailures = 0;
+    nextJobsRefreshAt = Date.now() + 8_000;
+  } catch (error) {
+    jobsRefreshFailures += 1;
+    nextJobsRefreshAt = Date.now() + Math.min(60_000, 8_000 * 2 ** Math.min(jobsRefreshFailures, 3));
+    track("jobs_refresh_failed", { ...analyticsError(error), manual, consecutive_failures: jobsRefreshFailures, duration_ms: Math.round(performance.now() - startedAt) });
+    element("jobs-refresh-error").textContent = t("jobsRefreshFailed");
+    element<HTMLElement>("jobs-refresh-error").hidden = false;
+    handleAuthenticationFailure(error);
+  } finally {
+    jobsRefreshing = false;
   }
+}
+
+if (api) window.setInterval(() => {
+  if (!document.hidden && data?.jobs.some((job) => IN_PROGRESS_JOB_STATUSES.has(job.status.toLowerCase()) || job.status === "succeeded" && !job.outputUrl)) void refreshJobs();
 }, 8_000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) void refreshJobs(true); });

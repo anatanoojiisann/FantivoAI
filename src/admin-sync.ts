@@ -2,6 +2,7 @@ import type { PaymentOrder, CreditPack as RuntimeCreditPack, SubscriptionPlan as
 export type { PaymentOrder, CreditPack as RuntimeCreditPack, SubscriptionPlan as RuntimeSubscriptionPlan } from "../shared/contracts";
 
 import type { Env } from "./types";
+import { withRequestDeadline } from "../shared/request-deadline";
 
 export type AdminEvent = {
   eventId: string;
@@ -52,6 +53,7 @@ export type ReferralOverview = {
 };
 
 let cachedConfiguration: { key: object | string; value: AdminConfigurationPayload; expiresAt: number } | undefined;
+const pendingConfigurations = new Map<object | string, Promise<AdminConfigurationPayload | null>>();
 
 export function adminSyncConfigured(env: Env) {
   return Boolean((env.ADMIN_SERVICE || env.ADMIN_SYNC_BASE_URL?.trim()) && env.ADMIN_SYNC_SECRET?.trim());
@@ -76,11 +78,13 @@ export async function sendAdminEvent(env: Env, event: AdminEvent, required = fal
         "X-Admin-Signature": signature,
       },
       body: bodyText,
-      signal: AbortSignal.timeout(4_000),
     };
-    const response = env.ADMIN_SERVICE ? await env.ADMIN_SERVICE.fetch(new Request(url, init)) : await fetch(url, init);
-    if (!response.ok) throw new Error(`admin sync returned ${response.status}`);
-    return response.json<Record<string, unknown>>();
+    return await withRequestDeadline(4_000, async (signal) => {
+      const request = new Request(url, { ...init, signal });
+      const response = env.ADMIN_SERVICE ? await env.ADMIN_SERVICE.fetch(request) : await fetch(request);
+      if (!response.ok) throw new Error(`admin sync returned ${response.status}`);
+      return response.json<Record<string, unknown>>();
+    });
   } catch (error) {
     console.error(JSON.stringify({ event: "admin_sync_failed", type: event.type, eventId: event.eventId, error: String(error) }));
     if (required) throw new AdminSyncError("发布服务暂时不可用，请稍后重试。");
@@ -158,7 +162,7 @@ async function adminSignedRequest<T>(env: Env, path: string, method: "GET" | "PO
   const timestamp = String(Math.floor(Date.now() / 1_000));
   const signature = await createSignature(env.ADMIN_SYNC_SECRET!, timestamp, body);
   const url = `${env.ADMIN_SYNC_BASE_URL?.replace(/\/$/, "") || "https://aurax-admin-service.internal"}${path}`;
-  const request = new Request(url, {
+  const init: RequestInit = {
     method,
     headers: {
       "Accept": "application/json",
@@ -167,13 +171,15 @@ async function adminSignedRequest<T>(env: Env, path: string, method: "GET" | "PO
       "X-Admin-Signature": signature,
     },
     body: method === "POST" ? bodyText : undefined,
-    signal: AbortSignal.timeout(4_000),
-  });
+  };
   try {
-    const response = env.ADMIN_SERVICE ? await env.ADMIN_SERVICE.fetch(request) : await fetch(request);
-    const payload = await response.json().catch(() => null) as T | { message?: string } | null;
-    if (!response.ok) throw new Error((payload as { message?: string } | null)?.message || `payment order service returned ${response.status}`);
-    return payload as T;
+    return await withRequestDeadline(4_000, async (signal) => {
+      const request = new Request(url, { ...init, signal });
+      const response = env.ADMIN_SERVICE ? await env.ADMIN_SERVICE.fetch(request) : await fetch(request);
+      const payload = await response.json() as T;
+      if (!response.ok || !payload) throw new Error(`admin service returned ${response.status}`);
+      return payload;
+    });
   } catch (error) {
     console.error(JSON.stringify({ event: "admin_signed_request_failed", operation, path, method, error: String(error) }));
     throw new AdminSyncError(adminOperationUnavailable(operation, true));
@@ -196,12 +202,24 @@ async function loadAdminConfiguration(env: Env) {
   const cacheKey = env.ADMIN_SERVICE ? env.ADMIN_SERVICE as unknown as object : env.ADMIN_SYNC_BASE_URL?.trim() || "";
   if (cachedConfiguration && cachedConfiguration.key === cacheKey && cachedConfiguration.expiresAt > Date.now()) return cachedConfiguration.value;
   if (!env.ADMIN_SERVICE && !env.ADMIN_SYNC_BASE_URL?.trim()) return null;
+  const pending = pendingConfigurations.get(cacheKey);
+  if (pending) return pending;
+  const loading = fetchAdminConfiguration(env, cacheKey);
+  pendingConfigurations.set(cacheKey, loading);
+  try { return await loading; }
+  finally { pendingConfigurations.delete(cacheKey); }
+}
+
+async function fetchAdminConfiguration(env: Env, cacheKey: object | string) {
   try {
     const url = `${env.ADMIN_SYNC_BASE_URL?.replace(/\/$/, "") || "https://aurax-admin-service.internal"}/api/public/v1/configuration`;
-    const request = new Request(url, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(2_000) });
-    const response = env.ADMIN_SERVICE ? await env.ADMIN_SERVICE.fetch(request) : await fetch(request);
-    if (!response.ok) return null;
-    const body = await response.json<{ configuration?: AdminConfigurationPayload }>();
+    const body = await withRequestDeadline(2_000, async (signal) => {
+      const request = new Request(url, { headers: { Accept: "application/json" }, signal });
+      const response = env.ADMIN_SERVICE ? await env.ADMIN_SERVICE.fetch(request) : await fetch(request);
+      if (!response.ok) return null;
+      return response.json<{ configuration?: AdminConfigurationPayload }>();
+    });
+    if (!body) return null;
     const value = body.configuration || {};
     cachedConfiguration = { key: cacheKey, value, expiresAt: Date.now() + 60_000 };
     return value;

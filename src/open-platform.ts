@@ -1,6 +1,7 @@
 import type { Env, OpenPlatformContent, OpenPlatformHome, OpenPlatformJob, OpenPlatformModel, OpenPlatformPersona, TelegramUser } from "./types";
 import { DEFAULT_ASPECT_RATIO, DEFAULT_DURATION_SECONDS, DEFAULT_QUALITY, TERMS_VERSION } from "./config";
 import { adminSyncConfigured, loadAdminGenerationConfiguration, sendAdminEvent } from "./admin-sync";
+import { RequestTimeoutError, withRequestDeadline } from "../shared/request-deadline";
 
 type Wallet = { balance: number; version: number };
 const CREATION_TEMPLATE_IDS = ["cinematic-portrait", "cover-shot", "couple-story", "city-night", "soft-smile"] as const;
@@ -333,27 +334,27 @@ export class OpenPlatformClient {
     const endpoint = logEndpoint(path);
 
     for (let attempt = 1; attempt <= (canRetry ? 2 : 1); attempt += 1) {
-      let response: Response;
+      const startedAt = Date.now();
       try {
-        response = await fetch(`${this.env.OPEN_PLATFORM_BASE_URL.replace(/\/$/, "")}${path}`, { ...init, headers });
+        return await withRequestDeadline(method === "GET" ? 8_000 : json ? 15_000 : 30_000, async (signal) => {
+          const response = await fetch(`${this.env.OPEN_PLATFORM_BASE_URL.replace(/\/$/, "")}${path}`, { ...init, headers, signal });
+          let payload: T & { code?: string; message?: string };
+          try { payload = await response.json(); }
+          catch { throw new OpenPlatformError("invalid_response", "Invalid platform response", 502); }
+          if (!response.ok) throw new OpenPlatformError(payload?.code || "request_failed", payload?.message || response.statusText, response.status);
+          console.log(JSON.stringify({ event: "open_platform_request_completed", endpoint, method, status: response.status, attempt, duration_ms: Date.now() - startedAt }));
+          return payload;
+        });
       } catch (error) {
-        console.error(JSON.stringify({ event: "open_platform_request_failed", endpoint, method, code: "network_error", status: 0, attempt }));
-        if (canRetry && attempt === 1) {
+        const failure = error instanceof OpenPlatformError ? error
+          : new OpenPlatformError(error instanceof RequestTimeoutError ? "request_timeout" : "network_error", "Platform request did not complete", 502);
+        console.error(JSON.stringify({ event: "open_platform_request_failed", endpoint, method, code: failure.code, status: failure.status, attempt, duration_ms: Date.now() - startedAt }));
+        if (canRetry && attempt === 1 && [502, 503, 504].includes(failure.status)) {
           await retryDelay();
           continue;
         }
-        throw error;
+        throw failure;
       }
-      if (response.ok) return response.json() as Promise<T>;
-
-      const error = await response.json().catch(() => ({ code: "request_failed", message: response.statusText })) as { code?: string; message?: string };
-      const code = error.code || "request_failed";
-      console.error(JSON.stringify({ event: "open_platform_request_failed", endpoint, method, code, status: response.status, attempt }));
-      if (canRetry && attempt === 1 && [502, 503, 504].includes(response.status)) {
-        await retryDelay();
-        continue;
-      }
-      throw new OpenPlatformError(code, error.message || response.statusText, response.status);
     }
     throw new OpenPlatformError("request_failed", "Open Platform request failed", 502);
   }

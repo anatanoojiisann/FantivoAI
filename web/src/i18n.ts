@@ -277,11 +277,32 @@ const en = {
   errorJobFailedRefunded: "Generation could not be completed. The charged credits were refunded; please try again.",
   errorJobFailed: "Generation could not be completed. Please try again.",
   credits: "credits",
+  openTelegram: "Open in Telegram",
+  errorRequestTimeout: "The request timed out. Check your creations, then retry if needed.",
+  jobsRefreshFailed: "Could not refresh job status. Generation may still be running. Please refresh again.",
 } as const;
 
 export type TranslationKey = keyof typeof en;
 type Dictionary = Partial<Record<TranslationKey, string>>;
 type Dictionaries = Partial<Record<Locale, Dictionary>>;
+
+const reliabilityDictionaries: Dictionaries = {
+  "zh-CN": { openTelegram: "在 Telegram 中打开", errorRequestTimeout: "请求超时，请先查看作品列表，必要时重试。", jobsRefreshFailed: "任务状态刷新失败，生成可能仍在继续，请重新刷新。" },
+  ru: { openTelegram: "Открыть в Telegram", errorRequestTimeout: "Время ожидания истекло. Проверьте свои работы и при необходимости повторите попытку.", jobsRefreshFailed: "Не удалось обновить статус. Генерация может продолжаться. Обновите ещё раз." },
+  uk: { openTelegram: "Відкрити в Telegram", errorRequestTimeout: "Час очікування минув. Перевірте свої роботи й за потреби повторіть спробу.", jobsRefreshFailed: "Не вдалося оновити статус. Генерація може тривати. Оновіть ще раз." },
+  uz: { openTelegram: "Telegram’da ochish", errorRequestTimeout: "So‘rov vaqti tugadi. Ishlaringizni tekshiring va kerak bo‘lsa qayta urinib ko‘ring.", jobsRefreshFailed: "Holat yangilanmadi. Yaratish davom etayotgan bo‘lishi mumkin. Qayta yangilang." },
+  kk: { openTelegram: "Telegram-да ашу", errorRequestTimeout: "Сұрау уақыты аяқталды. Жұмыстарыңызды тексеріп, қажет болса қайталаңыз.", jobsRefreshFailed: "Күй жаңартылмады. Жасау әлі жалғасуы мүмкін. Қайта жаңартыңыз." },
+  vi: { openTelegram: "Mở trong Telegram", errorRequestTimeout: "Yêu cầu đã hết thời gian chờ. Hãy kiểm tra tác phẩm rồi thử lại nếu cần.", jobsRefreshFailed: "Không thể cập nhật trạng thái. Quá trình tạo có thể vẫn tiếp tục. Hãy làm mới lại." },
+  id: { openTelegram: "Buka di Telegram", errorRequestTimeout: "Permintaan kehabisan waktu. Periksa karya Anda, lalu coba lagi jika perlu.", jobsRefreshFailed: "Status gagal diperbarui. Pembuatan mungkin masih berjalan. Silakan segarkan lagi." },
+  ms: { openTelegram: "Buka dalam Telegram", errorRequestTimeout: "Permintaan tamat masa. Semak hasil anda, kemudian cuba lagi jika perlu.", jobsRefreshFailed: "Status gagal dikemas kini. Penjanaan mungkin masih berjalan. Muat semula." },
+  th: { openTelegram: "เปิดใน Telegram", errorRequestTimeout: "คำขอหมดเวลา โปรดตรวจสอบผลงานแล้วลองอีกครั้งหากจำเป็น", jobsRefreshFailed: "อัปเดตสถานะไม่สำเร็จ การสร้างอาจยังดำเนินอยู่ โปรดรีเฟรชอีกครั้ง" },
+  es: { openTelegram: "Abrir en Telegram", errorRequestTimeout: "La solicitud agotó el tiempo de espera. Revisa tus creaciones y vuelve a intentarlo si es necesario.", jobsRefreshFailed: "No se pudo actualizar el estado. La generación puede continuar. Vuelve a actualizar." },
+  "pt-BR": { openTelegram: "Abrir no Telegram", errorRequestTimeout: "A solicitação expirou. Confira suas criações e tente novamente se necessário.", jobsRefreshFailed: "Não foi possível atualizar o status. A geração pode continuar. Atualize novamente." },
+  ar: { openTelegram: "فتح في Telegram", errorRequestTimeout: "انتهت مهلة الطلب. تحقق من أعمالك ثم أعد المحاولة إذا لزم الأمر.", jobsRefreshFailed: "تعذر تحديث الحالة. قد يستمر الإنشاء. يرجى التحديث مرة أخرى." },
+  tr: { openTelegram: "Telegram’da aç", errorRequestTimeout: "İstek zaman aşımına uğradı. Çalışmalarınızı kontrol edip gerekirse yeniden deneyin.", jobsRefreshFailed: "Durum güncellenemedi. Oluşturma devam ediyor olabilir. Yeniden yenileyin." },
+  fa: { openTelegram: "باز کردن در Telegram", errorRequestTimeout: "مهلت درخواست تمام شد. آثار خود را بررسی کنید و در صورت نیاز دوباره تلاش کنید.", jobsRefreshFailed: "وضعیت به‌روزرسانی نشد. ساخت ممکن است ادامه داشته باشد. دوباره تازه‌سازی کنید." },
+  hi: { openTelegram: "Telegram में खोलें", errorRequestTimeout: "अनुरोध का समय समाप्त हुआ। अपनी रचनाएँ देखें और ज़रूरत हो तो फिर प्रयास करें।", jobsRefreshFailed: "स्थिति अपडेट नहीं हुई। निर्माण जारी हो सकता है। कृपया फिर रीफ़्रेश करें।" },
+};
 
 // Advanced screens that have not yet received a dedicated CIS translation use
 // Russian instead of English. The primary creation journey is localized below.
@@ -1124,7 +1145,8 @@ export function isRtl(locale: Locale) {
 }
 
 export function translate(locale: Locale, key: TranslationKey, variables: Record<string, string | number> = {}) {
-  const lookup = (candidate: Locale) => errorDictionaries[candidate]?.[key]
+  const lookup = (candidate: Locale) => reliabilityDictionaries[candidate]?.[key]
+    || errorDictionaries[candidate]?.[key]
     || subscriptionDictionaries[candidate]?.[key]
     || jobFilterDictionaries[candidate]?.[key]
     || jobActionDictionaries[candidate]?.[key]

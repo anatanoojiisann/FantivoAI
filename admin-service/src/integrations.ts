@@ -68,12 +68,13 @@ export function validateGenerationAgainstCatalog(generation: {
 }
 
 const ANALYTICS_EVENTS = [
-  "mini_app_opened", "mini_app_bootstrap_failed", "mini_app_section_viewed", "mini_app_navigation_clicked", "locale_changed",
+  "mini_app_opened", "mini_app_launch_blocked", "mini_app_bootstrap_started", "mini_app_initialized", "mini_app_bootstrap_failed", "mini_app_section_viewed", "mini_app_navigation_clicked", "locale_changed",
   "personalized_feed_loaded", "personalized_feed_failed", "personalized_feed_refreshed", "personalized_feed_retry_clicked", "personalized_feed_empty",
   "creation_templates_loaded", "creation_templates_failed", "home_category_selected", "home_item_impression", "home_item_clicked", "home_section_viewed",
   "home_item_detail_opened", "home_item_detail_loaded", "home_item_detail_failed", "home_item_detail_closed", "home_item_creator_opened",
   "home_content_selected_for_creation", "home_content_selection_cleared", "persona_selected",
-  "generation_mode_selected", "generation_aspect_ratio_selected", "generation_duration_selected", "generation_image_selected", "generation_submitted", "generation_created", "generation_failed",
+  "creation_viewed", "generation_mode_selected", "generation_aspect_ratio_selected", "generation_duration_selected", "generation_image_selected", "generate_clicked", "generation_submitted", "generation_created", "generation_failed",
+  "generation_succeeded", "generation_completion_failed", "generation_result_viewed", "jobs_refresh_failed", "jobs_refresh_recovered", "job_video_playback_failed",
   "wallet_opened", "payment_terms_consent_changed", "credit_pack_selected", "subscription_plan_selected", "invoice_opened", "invoice_creation_failed", "payment_result_received", "payment_paid",
   "subscription_renewal_changed", "subscription_renewal_change_failed",
   "referral_share_clicked",
@@ -142,7 +143,7 @@ export async function fetchAcquisitionBreakdown(env: Env, from: string, to: stri
 
 export async function fetchConversionFunnel(env: Env, from: string, to: string, source: string | null) {
   const range = analyticsRange(from, to);
-  const events = ["mini_app_opened", "personalized_feed_loaded", "generation_created", "invoice_opened", "payment_paid"];
+  const events = ["mini_app_opened", "mini_app_initialized", "personalized_feed_loaded", "creation_viewed", "generate_clicked", "generation_created", "generation_succeeded", "generation_result_viewed", "invoice_opened", "payment_paid"];
   const sourceFilter = source ? ` AND toString(properties.acquisition_source) = ${sqlLiteral(source)}` : "";
   const rows = await posthogQuery(env, `SELECT event, count(DISTINCT distinct_id) AS users FROM events WHERE ${range} AND event IN (${events.map(sqlLiteral).join(", ")})${sourceFilter} GROUP BY event`);
   const counts = new Map(rows.map((row) => [String(row[0]), Number(row[1]) || 0]));
@@ -150,6 +151,8 @@ export async function fetchConversionFunnel(env: Env, from: string, to: string, 
     from,
     to,
     source: source || "all",
+    counting: "independent_unique_users",
+    ordered: false,
     steps: events.map((event) => ({ event, users: counts.get(event) || 0 })),
   };
 }

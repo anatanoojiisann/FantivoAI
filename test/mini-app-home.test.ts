@@ -250,12 +250,20 @@ test("Mini App validates and forwards selected model aspect ratio and duration",
 
 test("Mini App bootstrap exposes the active model aspect ratios and credit cost", async (context) => {
   const originalFetch = globalThis.fetch;
+  let userCreated = false;
   context.after(() => { globalThis.fetch = originalFetch; });
 
   globalThis.fetch = async (input) => {
     const url = String(input);
-    if (url.endsWith("/v1/users")) return Response.json({ user: {}, wallet: { balance: 700, version: 1 } });
-    if (url.includes("/v1/generation-jobs?")) return Response.json({ jobs: [] });
+    if (url.endsWith("/v1/users")) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      userCreated = true;
+      return Response.json({ user: {}, wallet: { balance: 700, version: 1 } });
+    }
+    if (url.includes("/v1/generation-jobs?")) {
+      assert.equal(userCreated, true, "new user must exist before listing jobs");
+      return Response.json({ jobs: [] });
+    }
     if (url.endsWith("/v1/models")) {
       return Response.json({
         version: "test-catalog",

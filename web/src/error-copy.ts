@@ -7,6 +7,8 @@ export type ErrorPresentation = {
 
 const API_ERROR_PRESENTATIONS: Record<string, ErrorPresentation> = {
   unauthorized: { key: "errorUnauthorized" },
+  session_expired: { key: "errorUnauthorized" },
+  request_timeout: { key: "errorRequestTimeout" },
   insufficient_credits: { key: "errorInsufficient" },
   limit_exceeded: { key: "errorLimit" },
   not_found: { key: "errorResourceNotFound" },
